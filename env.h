@@ -1,2 +1,2 @@
-#define TX_IFINDEX 1
-#define RX_IFINDEX 2
+#define SERVER_DEVICE 2
+#define CLIENT_DEVICE 2

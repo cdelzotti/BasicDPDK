@@ -2,14 +2,14 @@
 # Copyright(c) 2010-2014 Intel Corporation
 
 # binary name
-APP = l2fwd
+APP = server
 
 # all source are stored in SRCS-y
 SRCS-y := main.c
 
-PKGCONF ?= pkg-config
+PKGCONF ?= pkgconf
 
-# Build using pkg-config variables if possible
+#Build using pkg-config variables if possible
 ifneq ($(shell $(PKGCONF) --exists libdpdk && echo 0),0)
 $(error "no installation of DPDK found")
 endif
@@ -27,6 +27,9 @@ CFLAGS += -O3 $(shell $(PKGCONF) --cflags libdpdk)
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 LDFLAGS_SHARED = $(shell $(PKGCONF) --libs libdpdk)
 LDFLAGS_STATIC = $(shell $(PKGCONF) --static --libs libdpdk)
+DPDK_DIR = /home/clement/dpdk
+LOCAL_DPDK_HEADERS = -I $(DPDK_DIR)/config -I $(DPDK_DIR)/build/ -I $(DPDK_DIR)/lib/eal/include/ -I $(DPDK_DIR)/lib/eal/linux/include/ -I $(DPDK_DIR)/lib/eal/x86/include/ -I $(DPDK_DIR)/lib/net/ -I $(DPDK_DIR)/lib/mbuf/ -I $(DPDK_DIR)/lib/mempool/ -I $(DPDK_DIR)/lib/ring/ -I $(DPDK_DIR)/lib/ethdev/ -I $(DPDK_DIR)/lib/meter/
+LOCAL_DPDK_LIBS = -L$(DPDK_DIR)/build/lib/ -L$(DPDK_DIR)/build/drivers/
 
 ifeq ($(MAKECMDGOALS),static)
 # check for broken pkg-config
@@ -37,10 +40,10 @@ endif
 endif
 
 build/$(APP)-shared: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CC) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_SHARED)
+	$(CC) $(LOCAL_DPDK_HEADERS) $(CFLAGS) $(SRCS-y) $(LOCAL_DPDK_LIBS) -o $@ $(LDFLAGS) $(LDFLAGS_SHARED)
 
 build/$(APP)-static: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CC) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_STATIC)
+	$(CC) $(LOCAL_DPDK_HEADERS) $(CFLAGS) $(SRCS-y) $(LOCAL_DPDK_LIBS) -o $@ $(LDFLAGS) $(LDFLAGS_STATIC)
 
 build:
 	@mkdir -p $@

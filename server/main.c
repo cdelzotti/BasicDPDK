@@ -11,6 +11,8 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 
+#include "../env.h"
+
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
@@ -122,14 +124,6 @@ lcore_main(void)
 	 * Check that the port is on the same NUMA node as the polling thread
 	 * for best performance.
 	 */
-	RTE_ETH_FOREACH_DEV(port)
-		if (rte_eth_dev_socket_id(port) >= 0 &&
-				rte_eth_dev_socket_id(port) !=
-						(int)rte_socket_id())
-			printf("WARNING, port %u is on remote NUMA node to "
-					"polling thread.\n\tPerformance will "
-					"not be optimal.\n", port);
-
 	printf("\nCore %u forwarding packets. [Ctrl+C to quit]\n",
 			rte_lcore_id());
 
@@ -139,25 +133,24 @@ lcore_main(void)
 		 * Receive packets on a port and forward them on the paired
 		 * port. The mapping is 0 -> 1, 1 -> 0, 2 -> 3, 3 -> 2, etc.
 		 */
-		RTE_ETH_FOREACH_DEV(port) {
+		int port = SERVER_DEVICE;
+		/* Get burst of RX packets, from first port of pair. */
+		struct rte_mbuf *bufs[BURST_SIZE];
+		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
+				bufs, BURST_SIZE);
 
-			/* Get burst of RX packets, from first port of pair. */
-			struct rte_mbuf *bufs[BURST_SIZE];
-			const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
-					bufs, BURST_SIZE);
+		if (unlikely(nb_rx == 0))
+			continue;
 
-			if (unlikely(nb_rx == 0))
-				continue;
-
-			/* Send burst of TX packets, to second port of pair. */
-			const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
-					bufs, nb_rx);
-
-			/* Free any unsent packets. */
-			if (unlikely(nb_tx < nb_rx)) {
-				uint16_t buf;
-				for (buf = nb_tx; buf < nb_rx; buf++)
-					rte_pktmbuf_free(bufs[buf]);
+		/* Send burst of TX packets, to second port of pair. */
+		//const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
+		//		bufs, nb_rx);
+		int nb_tx = 0;
+		if (unlikely(nb_tx < nb_rx)) {
+			uint16_t buf;
+			for (buf = nb_tx; buf < nb_rx; buf++){
+				printf("I saw something on port %u\n", port);
+				rte_pktmbuf_free(bufs[buf]);
 			}
 		}
 	}
@@ -186,13 +179,15 @@ main(int argc, char *argv[])
 	argv += ret;
 
 	/* Check that there is an even number of ports to send/receive on. */
-	nb_ports = rte_eth_dev_count_avail();
-	if (nb_ports < 2 || (nb_ports & 1))
-		rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
+	nb_ports=1;
+	//nb_ports = rte_eth_dev_count_avail();
+	//if (nb_ports < 2 || (nb_ports & 1))
+	//	rte_exit(EXIT_FAILURE, "Error: number of ports must be even\n");
 
 	/* Creates a new mempool in memory to hold the mbufs. */
 
 	/* Allocates mempool to hold the mbufs. 8< */
+	printf("Init MEMPOOL\n");
 	mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
 		MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
 	/* >8 End of allocating mempool to hold mbuf. */
@@ -201,18 +196,23 @@ main(int argc, char *argv[])
 		rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
 
 	/* Initializing all ports. 8< */
-	RTE_ETH_FOREACH_DEV(portid)
-		printf("Initializing port %u", portid);
-		// if (port_init(portid, mbuf_pool) != 0)
-		// 	rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16 "\n",
-		// 			portid);
+	RTE_ETH_FOREACH_DEV(portid){
+		if (portid != SERVER_DEVICE)
+			continue;
+		printf("Initializing port %u\n", portid);
+		if (port_init(portid, mbuf_pool) != 0){
+			printf("Failed to init port %d", portid);
+		 	rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16 "\n",
+					portid);
+		}
+	}
 	/* >8 End of initializing all ports. */
 
 	// if (rte_lcore_count() > 1)
 	// 	printf("\nWARNING: Too many lcores enabled. Only 1 used.\n");
 
 	// /* Call lcore_main on the main core only. Called on single lcore. 8< */
-	// lcore_main();
+	lcore_main();
 	/* >8 End of called on single lcore. */
 
 	/* clean up the EAL */
