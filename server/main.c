@@ -149,7 +149,12 @@ lcore_main(void)
 		if (unlikely(nb_tx < nb_rx)) {
 			uint16_t buf;
 			for (buf = nb_tx; buf < nb_rx; buf++){
-				printf("I saw something on port %u\n", port);
+				// Parse ethernet header
+				struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(bufs[buf], struct rte_ether_hdr *);
+				// Parse ipv4 header
+				struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+				printf("I saw something on port %u from", port);
+				printf(" %u.%u.%u.%u\n", ipv4_hdr->src_addr & 0xFF, (ipv4_hdr->src_addr >> 8) & 0xFF, (ipv4_hdr->src_addr >> 16) & 0xFF, (ipv4_hdr->src_addr >> 24) & 0xFF);
 				rte_pktmbuf_free(bufs[buf]);
 			}
 		}
