@@ -139,67 +139,23 @@ lcore_main(void)
 		const uint16_t nb_rx = rte_eth_rx_burst(port, 0,
 				bufs, BURST_SIZE);
 
-		//if (unlikely(nb_rx == 0))
-		//	continue;
+		if (unlikely(nb_rx == 0))
+			continue;
 
 		/* Send burst of TX packets, to second port of pair. */
 		//const uint16_t nb_tx = rte_eth_tx_burst(port ^ 1, 0,
 		//		bufs, nb_rx);
-				// Create a new packet
-		printf("Sending a packet\n");
-		struct rte_mbuf *new_bufs[BURST_SIZE];
-		// Allocate a new packet
-		new_bufs[0] = rte_pktmbuf_alloc(bufs[0]->pool);
-		// Create ethernet header
-		struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(new_bufs[0], struct rte_ether_hdr *);
-		// Set source and destination MAC addresses
-		rte_ether_addr_copy(&SERVER_MAC, &eth_hdr->dst_addr);
-		rte_ether_addr_copy(&CLIENT_MAC, &eth_hdr->src_addr);
-		// Set the ether type
-		eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-		// Create IP header
-		struct rte_ipv4_hdr *ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
-		// Set source and destination IP addresses
-		ip_hdr->src_addr = rte_cpu_to_be_32(CLIENT_IP);
-		ip_hdr->dst_addr = rte_cpu_to_be_32(SERVER_IP);
-		// Set the IP version
-		ip_hdr->version_ihl = 0x45;
-		// Set the IP type of service
-		ip_hdr->type_of_service = 0;
-		// Set the IP time to live
-		ip_hdr->time_to_live = 64;
-		// Set the IP protocol to UDP
-		ip_hdr->next_proto_id = 17;
-		// Create UDP header
-		struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
-		// Set source and destination UDP ports
-		udp_hdr->src_port = rte_cpu_to_be_16(80);
-		udp_hdr->dst_port = rte_cpu_to_be_16(80);
-		// Set the UDP length
-		udp_hdr->dgram_len = rte_cpu_to_be_16(8);
-		// Set the UDP payload
-		struct payload *payload = (struct payload *)(udp_hdr + 1);
-		payload->data = 42;
-		// Set the UDP payload length
-		udp_hdr->dgram_len = rte_cpu_to_be_16(10);
-		// Set the IP payload length
-		ip_hdr->total_length = rte_cpu_to_be_16(34);
-		// Set the IP header checksum
-		ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
-		// Set the UDP checksum
-		udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ip_hdr, udp_hdr);
-		// Set the packet length
-		new_bufs[0]->pkt_len = 44;
-		new_bufs[0]->data_len = 44;
-		// Send the packet
-		const uint16_t nb_tx_sent = rte_eth_tx_burst(port, 0,
-				new_bufs, 1);
-		// Free the packet
-		rte_pktmbuf_free(new_bufs[0]);
 		int nb_tx = 0;
 		if (unlikely(nb_tx < nb_rx)) {
 			uint16_t buf;
 			for (buf = nb_tx; buf < nb_rx; buf++){
+				// Parse ethernet header
+				struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(bufs[buf], struct rte_ether_hdr *);
+				// Parse ipv4 header
+				struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((char *)eth_hdr + sizeof(struct rte_ether_hdr));
+				uint32_t src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
+				printf("I saw something on port %u from", port);
+				printf(" %u.%u.%u.%u\n", uint32_t src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr););
 				rte_pktmbuf_free(bufs[buf]);
 			}
 		}

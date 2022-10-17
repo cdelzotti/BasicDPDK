@@ -151,10 +151,45 @@ lcore_main(void)
 			for (buf = nb_tx; buf < nb_rx; buf++){
 				// Parse ethernet header
 				struct rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(bufs[buf], struct rte_ether_hdr *);
+				if (unlikely(eth_hdr->ether_type != rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4))){
+					rte_pktmbuf_free(bufs[buf]);
+					continue;
+				}
+				printf("Received MAC src %u:%u:%u:%u:%u:%u, dst %u:%u:%u:%u:%u:%u\n", 
+				eth_hdr->src_addr.addr_bytes[0], 
+				eth_hdr->src_addr.addr_bytes[1], 
+				eth_hdr->src_addr.addr_bytes[2], 
+				eth_hdr->src_addr.addr_bytes[3], 
+				eth_hdr->src_addr.addr_bytes[4], 
+				eth_hdr->src_addr.addr_bytes[5], 
+				eth_hdr->dst_addr.addr_bytes[0], 
+				eth_hdr->dst_addr.addr_bytes[1], 
+				eth_hdr->dst_addr.addr_bytes[2], 
+				eth_hdr->dst_addr.addr_bytes[3], 
+				eth_hdr->dst_addr.addr_bytes[4], 
+				eth_hdr->dst_addr.addr_bytes[5]);
 				// Parse ipv4 header
-				struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+				struct rte_ipv4_hdr *ipv4_hdr = (struct rte_ipv4_hdr *)((char *)eth_hdr + sizeof(struct rte_ether_hdr));
+				uint32_t src_ip = rte_be_to_cpu_32(ipv4_hdr->src_addr);
 				printf("I saw something on port %u from", port);
-				printf(" %u.%u.%u.%u\n", ipv4_hdr->src_addr & 0xFF, (ipv4_hdr->src_addr >> 8) & 0xFF, (ipv4_hdr->src_addr >> 16) & 0xFF, (ipv4_hdr->src_addr >> 24) & 0xFF);
+				printf(" %u\n", src_ip);
+				// Check if the packet is UDP
+				if (ipv4_hdr->next_proto_id == IPPROTO_UDP){
+					// Parse UDP header
+					struct rte_udp_hdr *udp_hdr = (struct rte_udp_hdr *)(ipv4_hdr + 1);
+					// Get source and destination port
+					uint16_t src_port = rte_be_to_cpu_16(udp_hdr->src_port);
+					uint16_t dst_port = rte_be_to_cpu_16(udp_hdr->dst_port);
+					// Print source and destination port
+					printf("Source port: %u\n", src_port);
+					printf("Destination port: %u\n", dst_port);
+					// Parse payload
+					struct payload *payload = (struct payload *)(udp_hdr + 1);
+					// Print payload
+					printf("Payload: %u\n", payload->data);
+				} else {
+					printf("Not UDP\n");
+				}
 				rte_pktmbuf_free(bufs[buf]);
 			}
 		}
